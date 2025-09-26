@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import Toolbar from './Toolbar'
+import GlossaryHighlighter from './GlossaryHighlighter'
 
 const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." }) => {
   const editorRef = useRef(null)
@@ -7,6 +8,8 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
 
   // Initialize editor content
   useEffect(() => {
+    // Only update the innerHTML if the content from props is different
+    // to prevent cursor jumping.
     if (editorRef.current && content !== editorRef.current.innerHTML) {
       editorRef.current.innerHTML = content || ''
     }
@@ -14,11 +17,9 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
 
   // Handle content changes
   const handleContentChange = useCallback(() => {
-    if (editorRef.current) {
-      const newContent = editorRef.current.innerHTML
-      onChange(newContent)
-      updateActiveFormats()
-    }
+    const contentToUse = editorRef.current ? editorRef.current.innerHTML : ''
+    onChange(contentToUse)
+    updateActiveFormats()
   }, [onChange])
 
   // Update active format states
@@ -79,6 +80,7 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
       }
     }
 
+    // A small delay is needed to let the browser update the selection
     setTimeout(updateActiveFormats, 10)
   }, [handleCommand, updateActiveFormats, handleContentChange])
 
@@ -100,6 +102,7 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
       <Toolbar onCommand={handleCommand} activeFormats={activeFormats} />
       
       <div className="flex-1 p-6">
+        {/* The contentEditable div is the single source of content management */}
         <div
           ref={editorRef}
           contentEditable
@@ -115,6 +118,35 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
           data-placeholder={placeholder}
         />
       </div>
+
+      {/* GlossaryHighlighter is now a separate component that only renders the content.
+        It does not call onContentChange, which prevents the circular reference. */}
+      <GlossaryHighlighter content={content} />
+
+      {/* Corrected style tag: removed 'jsx' attribute */}
+      <style>{`
+        .glossary-term {
+          background-color: #fef3c7 !important;
+          border-bottom: 2px dotted #f59e0b !important;
+          cursor: pointer !important;
+          padding: 1px 2px;
+          border-radius: 2px;
+        }
+        
+        .dark .glossary-term {
+          background-color: #451a03 !important;
+          border-bottom-color: #f59e0b !important;
+          color: #fbbf24 !important;
+        }
+        
+        .glossary-term:hover {
+          background-color: #fed7aa !important;
+        }
+        
+        .dark .glossary-term:hover {
+          background-color: #7c2d12 !important;
+        }
+      `}</style>
     </div>
   )
 }

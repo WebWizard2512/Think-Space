@@ -26,15 +26,15 @@ export const storageService = {
   addNote: (note) => {
     const notes = storageService.getNotes()
     const newNote = {
-      id: Date.now().toString(),
-      title: note.title || 'Untitled Note',
-      content: note.content || '',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      isPinned: false,
-      isEncrypted: false,
-      tags: []
-    }
+  id: Date.now().toString(),
+  title: note.title || 'Untitled Note',
+  content: note.content || '',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  isPinned: false,
+  isEncrypted: false,
+  tags: []
+}
     notes.unshift(newNote)
     storageService.saveNotes(notes)
     return newNote

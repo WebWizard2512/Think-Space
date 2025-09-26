@@ -1,6 +1,7 @@
 import NoteCard from './NoteCard'
 
-const NotesList = ({ notes, currentNote, onSelectNote, onDeleteNote, onTogglePin, loading }) => {
+// Add onToggleEncryption to the destructured props list
+const NotesList = ({ notes, currentNote, onSelectNote, onDeleteNote, onTogglePin, onToggleEncryption, loading }) => {
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -38,6 +39,7 @@ const NotesList = ({ notes, currentNote, onSelectNote, onDeleteNote, onTogglePin
           onClick={onSelectNote}
           onDelete={onDeleteNote}
           onTogglePin={onTogglePin}
+          onToggleEncryption={onToggleEncryption}
         />
       ))}
     </div>
