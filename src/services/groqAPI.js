@@ -3,6 +3,8 @@ const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 class GroqService {
   async makeRequest(messages, maxTokens = 150) {
+    console.log('Making Groq API request with:', { messages, maxTokens, apiKeyLength: GROQ_API_KEY?.length })
+    
     try {
       const response = await fetch(GROQ_API_URL, {
         method: 'POST',
@@ -11,18 +13,23 @@ class GroqService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'llama3-8b-8192',
+          model: 'gemma-7b-it', // Updated to current model
           messages: messages,
           max_tokens: maxTokens,
           temperature: 0.7,
         }),
       })
 
+      console.log('Response status:', response.status)
+      
       if (!response.ok) {
-        throw new Error(`Groq API error: ${response.status}`)
+        const errorBody = await response.text()
+        console.log('Error response body:', errorBody)
+        throw new Error(`Groq API error: ${response.status} - ${errorBody}`)
       }
 
       const data = await response.json()
+      console.log('Groq API success:', data)
       return data.choices[0]?.message?.content || ''
     } catch (error) {
       console.error('Groq API Error:', error)
