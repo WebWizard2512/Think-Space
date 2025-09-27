@@ -8,10 +8,12 @@ import ThemeToggle from './components/UI/ThemeToggle'
 import AIPanel from './components/AI/AIPanel'
 import EncryptionModal from './components/Encryption/EncryptionModal'
 import NoteTitleEditor from './components/Notes/NoteTitleEditor'
-import { Menu, X, Smartphone } from 'lucide-react'
+import { Menu, X } from 'lucide-react'
 
 function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isAppLoaded, setIsAppLoaded] = useState(false)
+  
   const {
     notes,
     currentNote,
@@ -38,10 +40,24 @@ function App() {
     clearResults
   } = useAI()
 
+  // Handle app loading and theme initialization
+  useEffect(() => {
+    // Remove no-transition class and mark app as loaded after initial render
+    const timer = setTimeout(() => {
+      document.documentElement.classList.remove('no-transition')
+      setIsAppLoaded(true)
+    }, 100)
+
+    // Add no-transition class initially to prevent flash
+    document.documentElement.classList.add('no-transition')
+
+    return () => clearTimeout(timer)
+  }, [])
+
   // Clear AI results when switching notes
   useEffect(() => {
     clearResults()
-  }, [currentNote?.id])
+  }, [currentNote?.id, clearResults])
 
   // Encryption Modal State
   const [encryptionModal, setEncryptionModal] = useState({
@@ -51,8 +67,7 @@ function App() {
 
   const handleContentChange = (content) => {
     if (currentNote && !currentNote.isEncrypted) {
-      // Don't auto-update title from content anymore
-      updateNote(currentNote.id, { content })
+      autoSave(currentNote.id, content)
     }
   }
 
@@ -65,7 +80,7 @@ function App() {
   const handleCreateNote = () => {
     const newNote = createNote()
     setCurrentNote(newNote)
-    setIsMobileMenuOpen(false) // Close mobile menu when creating note
+    setIsMobileMenuOpen(false)
   }
 
   const handleSelectNote = (note) => {
@@ -77,7 +92,7 @@ function App() {
     } else {
       setCurrentNote(note)
     }
-    setIsMobileMenuOpen(false) // Close mobile menu when selecting note
+    setIsMobileMenuOpen(false)
   }
 
   const handleDeleteNote = (noteId) => {
@@ -126,41 +141,59 @@ function App() {
     }
   }
 
+  // Show loading screen while app is initializing
+  if (!isAppLoaded) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <span className="text-white text-2xl">T</span>
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            Loading ThinkSpace...
+          </h2>
+          <div className="loading-spinner mx-auto"></div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+    <div className={`min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300 ${isAppLoaded ? 'app-loaded' : 'app-loading'}`}>
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm sticky top-0 z-40">
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm sticky top-0 z-40 transition-colors duration-300">
         <div className="flex items-center justify-between px-4 lg:px-6 py-4">
           <div className="flex items-center gap-3">
             {/* Mobile menu button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200 focus-ring"
+              aria-label="Toggle menu"
             >
               {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
             
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-700 rounded-lg flex items-center justify-center shadow-md">
               <span className="text-white font-bold text-sm">T</span>
             </div>
-            <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400">
+            <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400 transition-colors duration-300">
               ThinkSpace
             </h1>
           </div>
 
           <div className="flex items-center gap-2 lg:gap-4">
-            <span className="hidden sm:block text-sm text-gray-500 dark:text-gray-400">
+            <span className="hidden sm:block text-sm text-gray-500 dark:text-gray-400 transition-colors duration-300">
               {notes.length} {notes.length === 1 ? 'note' : 'notes'}
             </span>
 
             {currentNote && !currentNote.isEncrypted && (
-              <span className="hidden sm:block text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-full">
+              <span className="hidden sm:block text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-full transition-colors duration-300 animate-fade-in">
                 Auto-saved
               </span>
             )}
 
             {currentNote?.isEncrypted && (
-              <span className="text-xs text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/30 px-2 py-1 rounded-full">
+              <span className="text-xs text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/30 px-2 py-1 rounded-full transition-colors duration-300 animate-fade-in">
                 🔒 Encrypted
               </span>
             )}
@@ -174,7 +207,7 @@ function App() {
         {/* Mobile Overlay */}
         {isMobileMenuOpen && (
           <div 
-            className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+            className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden modal-backdrop animate-fade-in"
             onClick={() => setIsMobileMenuOpen(false)}
           />
         )}
@@ -184,7 +217,7 @@ function App() {
           fixed lg:static inset-y-0 left-0 z-40 w-80 lg:w-80
           bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
           transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0
-          transition-transform duration-300 ease-in-out
+          transition-all duration-300 ease-in-out
           flex flex-col max-h-[calc(100vh-73px)] lg:max-h-none
         `}>
           <SearchBar
@@ -209,7 +242,7 @@ function App() {
         {/* Main Content */}
         <main className="flex-1 flex flex-col min-w-0">
           {currentNote ? (
-            <div className="flex-1 flex flex-col p-4 lg:p-6 min-h-0">
+            <div className="flex-1 flex flex-col p-4 lg:p-6 min-h-0 animate-fade-in">
               {/* Note Header */}
               <div className="flex-shrink-0 mb-4">
                 <div className="flex items-center gap-2 mb-2">
@@ -219,12 +252,12 @@ function App() {
                     isEncrypted={currentNote.isEncrypted}
                   />
                   {currentNote.isEncrypted && (
-                    <span className="text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded-full">
+                    <span className="text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded-full transition-colors duration-300 animate-scale-in">
                       🔒 Encrypted
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-sm text-gray-500 dark:text-gray-400 transition-colors duration-300">
                   Last updated: {new Date(currentNote.updatedAt).toLocaleString()}
                 </p>
               </div>
@@ -234,20 +267,20 @@ function App() {
                 {/* Editor */}
                 <div className="flex-1 min-h-0">
                   {currentNote.isEncrypted ? (
-                    <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors duration-300 animate-scale-in">
                       <div className="text-center p-6">
-                        <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
                           <span className="text-2xl">🔒</span>
                         </div>
-                        <h3 className="font-medium text-gray-900 dark:text-white mb-2">
+                        <h3 className="font-medium text-gray-900 dark:text-white mb-2 transition-colors duration-300">
                           This note is encrypted
                         </h3>
-                        <p className="text-gray-500 dark:text-gray-400 mb-4">
+                        <p className="text-gray-500 dark:text-gray-400 mb-4 transition-colors duration-300">
                           Click the unlock button to decrypt and view the content
                         </p>
                         <button
                           onClick={() => handleToggleEncryption(currentNote)}
-                          className="btn-primary"
+                          className="btn-primary btn-hover"
                         >
                           🔓 Decrypt Note
                         </button>
@@ -277,20 +310,20 @@ function App() {
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center p-6">
+            <div className="flex-1 flex items-center justify-center p-6 animate-fade-in">
               <div className="text-center max-w-md">
-                <div className="w-24 h-24 bg-gradient-to-r from-blue-500 to-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <div className="w-24 h-24 bg-gradient-to-r from-blue-500 to-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg hover:shadow-xl transition-shadow duration-300">
                   <span className="text-white text-3xl">✨</span>
                 </div>
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 transition-colors duration-300">
                   Welcome to ThinkSpace
                 </h2>
-                <p className="text-gray-500 dark:text-gray-400 mb-6">
+                <p className="text-gray-500 dark:text-gray-400 mb-6 transition-colors duration-300">
                   Your intelligent note-taking companion with AI features and encryption. Create your first note to get started.
                 </p>
                 <button
                   onClick={handleCreateNote}
-                  className="btn-primary"
+                  className="btn-primary btn-hover animate-scale-in"
                 >
                   Create Your First Note
                 </button>

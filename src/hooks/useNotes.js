@@ -21,7 +21,7 @@ export const useNotes = () => {
   }
 
   // Filter notes based on search
-  const filteredNotes = notes.filter(note =>
+  const filteredNotes = notes.filter(note => 
     note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (!note.isEncrypted && note.content.toLowerCase().includes(searchQuery.toLowerCase()))
   )
@@ -41,7 +41,7 @@ export const useNotes = () => {
   const updateNote = (id, updates) => {
     const updatedNote = storageService.updateNote(id, updates)
     if (updatedNote) {
-      setNotes(prev => prev.map(note =>
+      setNotes(prev => prev.map(note => 
         note.id === id ? updatedNote : note
       ))
       if (currentNote?.id === id) {
@@ -79,7 +79,7 @@ export const useNotes = () => {
 
       // Encrypt the content
       const encryptedContent = await encryptionService.encrypt(note.content, password)
-
+      
       // Update note with encrypted data
       const updatedNote = storageService.updateNote(id, {
         content: encryptedContent,
@@ -109,7 +109,7 @@ export const useNotes = () => {
 
       // Decrypt the content
       const decryptedContent = await encryptionService.decrypt(note.content, password)
-
+      
       // Update note with decrypted data
       const updatedNote = storageService.updateNote(id, {
         content: decryptedContent,
@@ -133,31 +133,40 @@ export const useNotes = () => {
 
   // Auto-save note content
   const autoSave = (noteId, content) => {
-  if (!noteId) return
-
-  const note = notes.find(n => n.id === noteId)
-  if (note?.isEncrypted) {
-    return
-  }
-  // Only update content, don't auto-generate title from content
-  updateNote(noteId, { content })
-}
-
-  return (
-    {
-      notes: filteredNotes,
-      currentNote,
-      searchQuery,
-      loading,
-      setCurrentNote,
-      setSearchQuery,
-      createNote,
-      updateNote,
-      deleteNote,
-      togglePin,
-      autoSave,
-      encryptNote,
-      decryptNote
+    if (!noteId) return
+    
+    const note = notes.find(n => n.id === noteId)
+    if (note?.isEncrypted) {
+      // Don't auto-save encrypted notes
+      return
     }
-  )
-}
+    
+    // Extract title from first line of content
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = content
+    const textContent = tempDiv.textContent || tempDiv.innerText || ''
+    const title = textContent.split('\n')[0].trim() || 'Untitled Note'
+    
+    updateNote(noteId, { 
+      content, 
+      title: title.substring(0, 50) // Limit title length
+    })
+  }
+
+  return ({
+    notes: filteredNotes,
+    currentNote,
+    searchQuery,
+    loading,
+    setCurrentNote,
+    setSearchQuery,
+    createNote,
+    updateNote,
+    deleteNote,
+    togglePin,
+    autoSave,
+    encryptNote,
+    decryptNote
+  }
+)
+};

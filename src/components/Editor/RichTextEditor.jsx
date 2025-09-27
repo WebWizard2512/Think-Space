@@ -7,7 +7,9 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
   const [activeFormats, setActiveFormats] = useState([])
   const [showTooltip, setShowTooltip] = useState(null)
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
+  const [highlightedTerms, setHighlightedTerms] = useState([])
   const lastContentRef = useRef('')
+  const highlightTimeoutRef = useRef(null)
 
   // Initialize editor content
   useEffect(() => {
@@ -17,7 +19,7 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
     }
   }, [content])
 
-  // Handle content changes (debounced)
+  // Handle content changes
   const handleContentChange = useCallback(() => {
     if (!editorRef.current) return
     
@@ -27,77 +29,33 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
       onChange(newContent)
       updateActiveFormats()
       
-      // Debounced highlighting to prevent cursor reset
-      const timeoutId = setTimeout(() => {
-        highlightTermsCarefully()
-      }, 1500) // Longer delay to avoid interrupting typing
+      // Clear existing timeout
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current)
+      }
       
-      return () => clearTimeout(timeoutId)
+      // Debounced highlighting
+      highlightTimeoutRef.current = setTimeout(() => {
+        highlightTermsInContent(newContent)
+      }, 2000) // 2 second delay after typing stops
     }
   }, [onChange])
 
-  // Careful term highlighting that preserves cursor
-  const highlightTermsCarefully = useCallback(async () => {
+  // Highlight terms in content
+  const highlightTermsInContent = useCallback(async (htmlContent) => {
     if (!editorRef.current) return
     
-    const element = editorRef.current
-    const selection = window.getSelection()
-    let range = null
-    let startContainer = null
-    let startOffset = 0
-    
-    // Save cursor position
-    if (selection.rangeCount > 0) {
-      range = selection.getRangeAt(0)
-      startContainer = range.startContainer
-      startOffset = range.startOffset
-    }
-    
-    const textContent = element.textContent || ''
+    const textContent = editorRef.current.textContent || ''
     
     // Only highlight if there's substantial content
-    if (textContent.length > 20) {
+    if (textContent.length > 50) {
       try {
-        // Use AI to identify key terms from the content
+        // Get key terms from content
         const keyTerms = await identifyKeyTerms(textContent)
         
         if (keyTerms.length > 0) {
-          let html = element.innerHTML
-          
-          // Remove existing highlights
-          html = html.replace(/<span class="glossary-term"[^>]*>([^<]+)<\/span>/g, '$1')
-          
-          // Add new highlights
-          keyTerms.forEach(term => {
-            const regex = new RegExp(`\\b(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi')
-            html = html.replace(regex, `<span class="glossary-term" data-term="$1">$1</span>`)
-          })
-          
-          // Only update if content changed
-          if (html !== element.innerHTML) {
-            element.innerHTML = html
-            
-            // Restore cursor position
-            if (range && startContainer) {
-              try {
-                const newRange = document.createRange()
-                newRange.setStart(startContainer, startOffset)
-                newRange.collapse(true)
-                selection.removeAllRanges()
-                selection.addRange(newRange)
-              } catch (e) {
-                // If cursor restoration fails, place at end
-                const newRange = document.createRange()
-                newRange.selectNodeContents(element)
-                newRange.collapse(false)
-                selection.removeAllRanges()
-                selection.addRange(newRange)
-              }
-            }
-            
-            // Add event listeners to new glossary terms
-            addGlossaryListeners()
-          }
+          setHighlightedTerms(keyTerms)
+          applyHighlighting(keyTerms)
         }
       } catch (error) {
         console.error('Error highlighting terms:', error)
@@ -105,26 +63,98 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
     }
   }, [])
 
-  // AI-powered key term identification
+  // Apply highlighting to terms
+  const applyHighlighting = useCallback((terms) => {
+    if (!editorRef.current) return
+    
+    // Save cursor position
+    const selection = window.getSelection()
+    let range = null
+    let startOffset = 0
+    let startContainer = null
+    
+    if (selection.rangeCount > 0) {
+      range = selection.getRangeAt(0)
+      startContainer = range.startContainer
+      startOffset = range.startOffset
+    }
+    
+    let html = editorRef.current.innerHTML
+    
+    // Remove existing highlights first
+    html = html.replace(/<span class="glossary-term"[^>]*>([^<]+)<\/span>/g, '$1')
+    
+    // Add new highlights
+    terms.forEach(term => {
+      const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const regex = new RegExp(`\\b(${escapedTerm})\\b`, 'gi')
+      html = html.replace(regex, '<span class="glossary-term" data-term="$1">$1</span>')
+    })
+    
+    // Update content if changed
+    if (html !== editorRef.current.innerHTML) {
+      editorRef.current.innerHTML = html
+      
+      // Restore cursor position
+      if (range && startContainer) {
+        try {
+          const newRange = document.createRange()
+          newRange.setStart(startContainer, startOffset)
+          newRange.collapse(true)
+          selection.removeAllRanges()
+          selection.addRange(newRange)
+        } catch (e) {
+          // If restoration fails, place at end
+          const newRange = document.createRange()
+          newRange.selectNodeContents(editorRef.current)
+          newRange.collapse(false)
+          selection.removeAllRanges()
+          selection.addRange(newRange)
+        }
+      }
+      
+      // Add event listeners to glossary terms
+      addGlossaryListeners()
+    }
+  }, [])
+
+  // Identify key terms using AI
   const identifyKeyTerms = useCallback(async (text) => {
     if (text.length < 50) return []
     
     try {
+      // Use a simpler approach first - common technical terms
+      const commonTerms = [
+        'algorithm', 'api', 'blockchain', 'machine learning', 'artificial intelligence',
+        'database', 'encryption', 'framework', 'protocol', 'authentication',
+        'javascript', 'react', 'nodejs', 'python', 'typescript', 'css', 'html',
+        'docker', 'kubernetes', 'microservices', 'devops', 'cybersecurity'
+      ]
+      
+      const foundTerms = commonTerms.filter(term => 
+        text.toLowerCase().includes(term.toLowerCase())
+      ).slice(0, 6)
+      
+      if (foundTerms.length > 0) {
+        return foundTerms
+      }
+      
+      // Fallback to AI if no common terms found
       const response = await groqService.makeRequest([
         {
           role: 'system',
-          content: 'You are a term extractor. Identify 5-10 key technical terms, concepts, or important words from the text that would benefit from definitions. Return only the terms separated by commas, no explanations.'
+          content: 'Extract 3-5 key technical terms or concepts from the text. Return only the terms separated by commas.'
         },
         {
           role: 'user',
-          content: `Extract key terms from: ${text.substring(0, 500)}`
+          content: `Extract key terms from: ${text.substring(0, 300)}`
         }
       ], 50)
       
       return response.split(',')
-        .map(term => term.trim())
-        .filter(term => term.length > 2 && term.length < 25)
-        .slice(0, 8)
+        .map(term => term.trim().toLowerCase())
+        .filter(term => term.length > 2 && term.length < 20)
+        .slice(0, 5)
     } catch (error) {
       console.error('Error identifying terms:', error)
       return []
@@ -167,7 +197,7 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
     setTimeout(() => setShowTooltip(null), 200)
   }
 
-  // Rest of your existing methods...
+  // Update active format states
   const updateActiveFormats = useCallback(() => {
     const formats = []
     if (document.queryCommandState('bold')) formats.push('bold')
@@ -176,6 +206,7 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
     setActiveFormats(formats)
   }, [])
 
+  // Handle toolbar commands
   const handleCommand = useCallback((command, value = null) => {
     editorRef.current?.focus()
     
@@ -193,6 +224,7 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
     }
   }, [handleContentChange, updateActiveFormats])
 
+  // Handle keyboard shortcuts
   const handleKeyDown = useCallback((e) => {
     if (e.ctrlKey && e.key === 's') {
       e.preventDefault()
@@ -220,20 +252,34 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
     setTimeout(updateActiveFormats, 10)
   }, [handleCommand, updateActiveFormats, handleContentChange])
 
+  // Handle selection changes
   const handleSelectionChange = useCallback(() => {
     updateActiveFormats()
   }, [updateActiveFormats])
 
+  // Setup event listeners
   useEffect(() => {
     document.addEventListener('selectionchange', handleSelectionChange)
     return () => {
       document.removeEventListener('selectionchange', handleSelectionChange)
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current)
+      }
     }
   }, [handleSelectionChange])
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
       <Toolbar onCommand={handleCommand} activeFormats={activeFormats} />
+      
+      {/* Glossary Status */}
+      {highlightedTerms.length > 0 && (
+        <div className="px-4 py-2 bg-yellow-50 dark:bg-yellow-900/20 border-b border-yellow-200 dark:border-yellow-800">
+          <p className="text-sm text-yellow-800 dark:text-yellow-200">
+            ✨ <strong>{highlightedTerms.length} terms</strong> highlighted. Hover over highlighted terms for definitions!
+          </p>
+        </div>
+      )}
       
       <div className="flex-1 p-4 lg:p-6 overflow-y-auto">
         <div
@@ -248,7 +294,7 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
             maxHeight: 'none',
             fontSize: '16px',
             lineHeight: '1.7',
-            fontWeight: '300' // Lighter font weight for normal text
+            fontWeight: '400'
           }}
           data-placeholder={placeholder}
         />
@@ -259,8 +305,8 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
         <div
           className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-xl p-3 max-w-xs"
           style={{
-            left: tooltipPosition.x - 150,
-            top: tooltipPosition.y - 10,
+            left: Math.max(10, tooltipPosition.x - 150),
+            top: Math.max(10, tooltipPosition.y - 10),
             transform: 'translateY(-100%)'
           }}
           onMouseEnter={() => setShowTooltip(showTooltip)}
@@ -274,6 +320,8 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
           <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
             {showTooltip.definition}
           </p>
+          {/* Tooltip arrow */}
+          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-200 dark:border-t-gray-600"></div>
         </div>
       )}
 
@@ -284,7 +332,6 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
           cursor: help !important;
           padding: 1px 2px;
           border-radius: 2px;
-          font-weight: inherit !important;
           transition: background-color 0.2s ease;
         }
         
@@ -302,15 +349,6 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
           background-color: #7c2d12 !important;
         }
 
-        /* Better bold text distinction */
-        [contenteditable] strong, [contenteditable] b {
-          font-weight: 700 !important;
-        }
-
-        [contenteditable] {
-          font-weight: 300 !important;
-        }
-
         /* Placeholder styling */
         [contenteditable]:empty:before {
           content: attr(data-placeholder);
@@ -322,7 +360,7 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
           color: #6b7280;
         }
 
-        /* Better text handling for large content */
+        /* Better text handling */
         [contenteditable] {
           word-wrap: break-word;
           overflow-wrap: break-word;
