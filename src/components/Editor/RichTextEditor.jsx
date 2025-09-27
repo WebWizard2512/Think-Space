@@ -1,39 +1,124 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import Toolbar from './Toolbar'
-import GlossaryHighlighter from './GlossaryHighlighter'
+import { groqService } from '../../services/groqAPI'
 
 const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." }) => {
   const editorRef = useRef(null)
   const [activeFormats, setActiveFormats] = useState([])
+  const [showTooltip, setShowTooltip] = useState(null)
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
+
+  // Technical terms for glossary
+  const technicalTerms = [
+    'algorithm', 'api', 'blockchain', 'machine learning', 'artificial intelligence',
+    'database', 'encryption', 'framework', 'protocol', 'authentication',
+    'javascript', 'react', 'nodejs', 'python', 'typescript',
+    'quantum computing', 'neural network', 'deep learning', 'cybersecurity'
+  ]
 
   // Initialize editor content
   useEffect(() => {
-    // Only update the innerHTML if the content from props is different
-    // to prevent cursor jumping.
     if (editorRef.current && content !== editorRef.current.innerHTML) {
       editorRef.current.innerHTML = content || ''
+      highlightTerms()
     }
   }, [content])
 
+  // Highlight technical terms
+  const highlightTerms = useCallback(() => {
+    if (!editorRef.current) return
+
+    const element = editorRef.current
+    let html = element.innerHTML
+
+    // Remove existing highlights
+    html = html.replace(/<span class="glossary-term"[^>]*>([^<]+)<\/span>/g, '$1')
+
+    // Find and highlight technical terms
+    technicalTerms.forEach(term => {
+      const regex = new RegExp(`\\b(${term})\\b`, 'gi')
+      html = html.replace(regex, `<span class="glossary-term" data-term="$1">$1</span>`)
+    })
+
+    // Only update if content changed
+    if (html !== element.innerHTML) {
+      const selection = window.getSelection()
+      const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null
+      
+      element.innerHTML = html
+      
+      // Restore cursor position
+      if (range) {
+        try {
+          selection.removeAllRanges()
+          selection.addRange(range)
+        } catch (e) {
+          // Ignore cursor restoration errors
+        }
+      }
+
+      // Add event listeners to new glossary terms
+      addGlossaryListeners()
+    }
+  }, [])
+
+  // Add event listeners to glossary terms
+  const addGlossaryListeners = useCallback(() => {
+    if (!editorRef.current) return
+
+    const glossaryTerms = editorRef.current.querySelectorAll('.glossary-term')
+    glossaryTerms.forEach(term => {
+      term.addEventListener('mouseenter', handleTermHover)
+      term.addEventListener('mouseleave', handleTermLeave)
+    })
+  }, [])
+
+  // Handle term hover
+  const handleTermHover = async (e) => {
+    const term = e.target.dataset.term
+    if (!term) return
+
+    const rect = e.target.getBoundingClientRect()
+    setTooltipPosition({
+      x: rect.left + rect.width / 2,
+      y: rect.top - 10
+    })
+
+    setShowTooltip({ term, definition: 'Loading definition...' })
+
+    try {
+      const definition = await groqService.getGlossaryDefinition(term)
+      setShowTooltip({ term, definition })
+    } catch (error) {
+      setShowTooltip({ term, definition: 'Definition not available' })
+    }
+  }
+
+  const handleTermLeave = () => {
+    setTimeout(() => setShowTooltip(null), 200)
+  }
+
   // Handle content changes
   const handleContentChange = useCallback(() => {
-    const contentToUse = editorRef.current ? editorRef.current.innerHTML : ''
-    onChange(contentToUse)
+    if (!editorRef.current) return
+    
+    const newContent = editorRef.current.innerHTML
+    onChange(newContent)
+    
+    // Debounce term highlighting
+    setTimeout(highlightTerms, 500)
     updateActiveFormats()
-  }, [onChange])
+  }, [onChange, highlightTerms])
 
-  // Update active format states
+  // Rest of your existing methods...
   const updateActiveFormats = useCallback(() => {
     const formats = []
-    
     if (document.queryCommandState('bold')) formats.push('bold')
     if (document.queryCommandState('italic')) formats.push('italic')
     if (document.queryCommandState('underline')) formats.push('underline')
-    
     setActiveFormats(formats)
   }, [])
 
-  // Handle toolbar commands
   const handleCommand = useCallback((command, value = null) => {
     editorRef.current?.focus()
     
@@ -51,16 +136,13 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
     }
   }, [handleContentChange, updateActiveFormats])
 
-  // Handle keyboard shortcuts
   const handleKeyDown = useCallback((e) => {
-    // Save shortcut
     if (e.ctrlKey && e.key === 's') {
       e.preventDefault()
       handleContentChange()
       return
     }
 
-    // Format shortcuts
     if (e.ctrlKey) {
       switch (e.key) {
         case 'b':
@@ -75,21 +157,16 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
           e.preventDefault()
           handleCommand('underline')
           break
-        default:
-          break
       }
     }
 
-    // A small delay is needed to let the browser update the selection
     setTimeout(updateActiveFormats, 10)
   }, [handleCommand, updateActiveFormats, handleContentChange])
 
-  // Handle selection changes
   const handleSelectionChange = useCallback(() => {
     updateActiveFormats()
   }, [updateActiveFormats])
 
-  // Setup event listeners
   useEffect(() => {
     document.addEventListener('selectionchange', handleSelectionChange)
     return () => {
@@ -102,7 +179,6 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
       <Toolbar onCommand={handleCommand} activeFormats={activeFormats} />
       
       <div className="flex-1 p-6">
-        {/* The contentEditable div is the single source of content management */}
         <div
           ref={editorRef}
           contentEditable
@@ -113,17 +189,36 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
           style={{
             minHeight: '400px',
             fontSize: '16px',
-            lineHeight: '1.6'
+            lineHeight: '1.6',
+            fontWeight: '400' // Fix bold text issue
           }}
           data-placeholder={placeholder}
         />
       </div>
 
-      {/* GlossaryHighlighter is now a separate component that only renders the content.
-        It does not call onContentChange, which prevents the circular reference. */}
-      <GlossaryHighlighter content={content} />
+      {/* Tooltip */}
+      {showTooltip && (
+        <div
+          className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg p-3 max-w-xs"
+          style={{
+            left: tooltipPosition.x - 150,
+            top: tooltipPosition.y - 10,
+            transform: 'translateY(-100%)'
+          }}
+          onMouseEnter={() => setShowTooltip(showTooltip)}
+          onMouseLeave={() => setShowTooltip(null)}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <span className="font-semibold text-sm text-blue-600 dark:text-blue-400">
+              {showTooltip.term}
+            </span>
+          </div>
+          <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
+            {showTooltip.definition}
+          </p>
+        </div>
+      )}
 
-      {/* Corrected style tag: removed 'jsx' attribute */}
       <style>{`
         .glossary-term {
           background-color: #fef3c7 !important;
@@ -131,6 +226,7 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
           cursor: pointer !important;
           padding: 1px 2px;
           border-radius: 2px;
+          font-weight: inherit !important;
         }
         
         .dark .glossary-term {
@@ -145,6 +241,15 @@ const RichTextEditor = ({ content, onChange, placeholder = "Start writing..." })
         
         .dark .glossary-term:hover {
           background-color: #7c2d12 !important;
+        }
+
+        /* Fix bold text visibility */
+        [contenteditable] strong, [contenteditable] b {
+          font-weight: 700 !important;
+        }
+
+        [contenteditable] {
+          font-weight: 400 !important;
         }
       `}</style>
     </div>

@@ -3,8 +3,8 @@ import { Pin, Trash2, Clock, Lock, Unlock } from 'lucide-react'
 const NoteCard = ({ note, isActive, onClick, onDelete, onTogglePin, onToggleEncryption }) => {
   const formatDate = (dateString) => {
     const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
@@ -15,7 +15,7 @@ const NoteCard = ({ note, isActive, onClick, onDelete, onTogglePin, onToggleEncr
     if (note.isEncrypted) {
       return '🔒 This note is encrypted'
     }
-    
+
     // Strip HTML tags and get first few words
     const tempDiv = document.createElement('div')
     tempDiv.innerHTML = content
@@ -43,11 +43,10 @@ const NoteCard = ({ note, isActive, onClick, onDelete, onTogglePin, onToggleEncr
   return (
     <div
       onClick={() => onClick(note)}
-      className={`group p-4 rounded-xl border cursor-pointer transition-all duration-200 hover:shadow-md ${
-        isActive 
-          ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-200 dark:border-primary-800' 
-          : 'bg-white dark:bg-dark-100 border-gray-200 dark:border-dark-200 hover:border-gray-300 dark:hover:border-dark-300'
-      }`}
+      className={`group p-4 rounded-xl border cursor-pointer transition-all duration-200 hover:shadow-md ${isActive
+          ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+        }`}
     >
       {/* Header */}
       <div className="flex items-start justify-between mb-2">
@@ -55,38 +54,35 @@ const NoteCard = ({ note, isActive, onClick, onDelete, onTogglePin, onToggleEncr
           {note.isEncrypted && (
             <Lock size={14} className="text-yellow-600 dark:text-yellow-400" />
           )}
-          <h3 className={`font-medium text-sm line-clamp-1 ${
-            isActive ? 'text-primary-900 dark:text-primary-100' : 'text-gray-900 dark:text-gray-100'
-          }`}>
+          <h3 className={`font-medium text-sm line-clamp-1 ${isActive ? 'text-primary-900 dark:text-primary-100' : 'text-gray-900 dark:text-gray-100'
+            }`}>
             {note.title}
           </h3>
         </div>
-        
+
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={handleToggleEncryption}
-            className={`p-1 rounded-md transition-colors ${
-              note.isEncrypted 
-                ? 'text-yellow-600 dark:text-yellow-400' 
+            className={`p-1 rounded-md transition-colors ${note.isEncrypted
+                ? 'text-yellow-600 dark:text-yellow-400'
                 : 'text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400'
-            }`}
+              }`}
             title={note.isEncrypted ? 'Decrypt note' : 'Encrypt note'}
           >
             {note.isEncrypted ? <Lock size={14} /> : <Unlock size={14} />}
           </button>
-          
+
           <button
             onClick={handlePin}
-            className={`p-1 rounded-md transition-colors ${
-              note.isPinned 
-                ? 'text-primary-600 dark:text-primary-400' 
+            className={`p-1 rounded-md transition-colors ${note.isPinned
+                ? 'text-primary-600 dark:text-primary-400'
                 : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-            }`}
+              }`}
             title={note.isPinned ? 'Unpin note' : 'Pin note'}
           >
             <Pin size={14} />
           </button>
-          
+
           <button
             onClick={handleDelete}
             className="p-1 rounded-md text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
@@ -98,11 +94,10 @@ const NoteCard = ({ note, isActive, onClick, onDelete, onTogglePin, onToggleEncr
       </div>
 
       {/* Preview */}
-      <p className={`text-xs line-clamp-3 mb-3 ${
-        note.isEncrypted 
-          ? 'text-yellow-600 dark:text-yellow-400 italic' 
+      <p className={`text-xs line-clamp-3 mb-3 ${note.isEncrypted
+          ? 'text-yellow-600 dark:text-yellow-400 italic'
           : 'text-gray-600 dark:text-gray-400'
-      }`}>
+        }`}>
         {getPreview(note.content) || 'No content'}
       </p>
 
@@ -112,7 +107,7 @@ const NoteCard = ({ note, isActive, onClick, onDelete, onTogglePin, onToggleEncr
           <Clock size={12} />
           <span>{formatDate(note.updatedAt)}</span>
         </div>
-        
+
         <div className="flex items-center gap-2">
           {note.isEncrypted && (
             <Lock size={12} className="text-yellow-500" />

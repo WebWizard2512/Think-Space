@@ -3,7 +3,7 @@ const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 class GroqService {
   async makeRequest(messages, maxTokens = 150) {
-    console.log('Making Groq API request with:', { messages, maxTokens, apiKeyLength: GROQ_API_KEY?.length })
+    console.log('Making Groq API request with:', { messages, maxTokens })
     
     try {
       const response = await fetch(GROQ_API_URL, {
@@ -13,7 +13,7 @@ class GroqService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gemma-7b-it', // Updated to current model
+          model: 'llama-3.1-70b-versatile', // This model should be available
           messages: messages,
           max_tokens: maxTokens,
           temperature: 0.7,
@@ -25,6 +25,13 @@ class GroqService {
       if (!response.ok) {
         const errorBody = await response.text()
         console.log('Error response body:', errorBody)
+        
+        // If this model fails, try another one
+        if (response.status === 400 && errorBody.includes('model')) {
+          console.log('Trying alternative model...')
+          return this.makeRequestWithFallback(messages, maxTokens)
+        }
+        
         throw new Error(`Groq API error: ${response.status} - ${errorBody}`)
       }
 
@@ -37,8 +44,48 @@ class GroqService {
     }
   }
 
+  async makeRequestWithFallback(messages, maxTokens = 150) {
+    const fallbackModels = [
+      'llama-3.1-8b-instant',
+      'llama3-groq-70b-8192-tool-use-preview',
+      'mixtral-8x7b-32768'
+    ]
+
+    for (const model of fallbackModels) {
+      try {
+        console.log(`Trying model: ${model}`)
+        
+        const response = await fetch(GROQ_API_URL, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${GROQ_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: messages,
+            max_tokens: maxTokens,
+            temperature: 0.7,
+          }),
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          console.log(`Success with model: ${model}`)
+          return data.choices[0]?.message?.content || ''
+        } else {
+          const errorBody = await response.text()
+          console.log(`Model ${model} failed:`, errorBody)
+        }
+      } catch (error) {
+        console.log(`Model ${model} error:`, error.message)
+      }
+    }
+
+    throw new Error('All Groq models failed. Please check your API key and try again.')
+  }
+
   async summarizeNote(content) {
-    // Strip HTML tags for better processing
     const textContent = content.replace(/<[^>]*>/g, ' ').trim()
     
     if (!textContent || textContent.length < 20) {
@@ -100,7 +147,7 @@ class GroqService {
       },
       {
         role: 'user',
-        content: `Check grammar in this text: ${textContent.substring(0, 500)}` // Limit length
+        content: `Check grammar in this text: ${textContent.substring(0, 500)}`
       }
     ]
 
@@ -111,7 +158,6 @@ class GroqService {
         return []
       }
 
-      // Parse the response to extract errors
       const errors = response.split('\n').filter(line => line.includes('ERROR:')).map(line => {
         const parts = line.split(' -> SUGGESTION: ')
         if (parts.length === 2) {
@@ -123,7 +169,7 @@ class GroqService {
         return null
       }).filter(Boolean)
 
-      return errors.slice(0, 3) // Limit to 3 errors
+      return errors.slice(0, 3)
     } catch (error) {
       console.error('Error checking grammar:', error)
       return []
