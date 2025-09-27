@@ -7,8 +7,11 @@ import NotesList from './components/Notes/NotesList'
 import ThemeToggle from './components/UI/ThemeToggle'
 import AIPanel from './components/AI/AIPanel'
 import EncryptionModal from './components/Encryption/EncryptionModal'
+import NoteTitleEditor from './components/Notes/NoteTitleEditor'
+import { Menu, X, Smartphone } from 'lucide-react'
 
 function App() {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const {
     notes,
     currentNote,
@@ -21,7 +24,8 @@ function App() {
     togglePin,
     autoSave,
     encryptNote,
-    decryptNote
+    decryptNote,
+    updateNote
   } = useNotes()
 
   // AI Hook
@@ -34,6 +38,11 @@ function App() {
     clearResults
   } = useAI()
 
+  // Clear AI results when switching notes
+  useEffect(() => {
+    clearResults()
+  }, [currentNote?.id])
+
   // Encryption Modal State
   const [encryptionModal, setEncryptionModal] = useState({
     isOpen: false,
@@ -42,18 +51,25 @@ function App() {
 
   const handleContentChange = (content) => {
     if (currentNote && !currentNote.isEncrypted) {
-      autoSave(currentNote.id, content)
+      // Don't auto-update title from content anymore
+      updateNote(currentNote.id, { content })
+    }
+  }
+
+  const handleTitleChange = (newTitle) => {
+    if (currentNote && !currentNote.isEncrypted) {
+      updateNote(currentNote.id, { title: newTitle })
     }
   }
 
   const handleCreateNote = () => {
     const newNote = createNote()
     setCurrentNote(newNote)
+    setIsMobileMenuOpen(false) // Close mobile menu when creating note
   }
 
   const handleSelectNote = (note) => {
     if (note.isEncrypted) {
-      // Show encrypted placeholder content
       setCurrentNote({
         ...note,
         content: '🔒 This note is encrypted. Use the decrypt button to view the content.'
@@ -61,6 +77,7 @@ function App() {
     } else {
       setCurrentNote(note)
     }
+    setIsMobileMenuOpen(false) // Close mobile menu when selecting note
   }
 
   const handleDeleteNote = (noteId) => {
@@ -88,7 +105,6 @@ function App() {
   const handleEncryptNote = async (noteId, password) => {
     try {
       await encryptNote(noteId, password)
-      // Update current note display
       if (currentNote?.id === noteId) {
         setCurrentNote(prev => ({
           ...prev,
@@ -113,9 +129,17 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
-        <div className="flex items-center justify-between px-6 py-4">
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm sticky top-0 z-40">
+        <div className="flex items-center justify-between px-4 lg:px-6 py-4">
           <div className="flex items-center gap-3">
+            {/* Mobile menu button */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+            
             <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">T</span>
             </div>
@@ -124,13 +148,13 @@ function App() {
             </h1>
           </div>
 
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-500 dark:text-gray-400">
+          <div className="flex items-center gap-2 lg:gap-4">
+            <span className="hidden sm:block text-sm text-gray-500 dark:text-gray-400">
               {notes.length} {notes.length === 1 ? 'note' : 'notes'}
             </span>
 
             {currentNote && !currentNote.isEncrypted && (
-              <span className="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-full">
+              <span className="hidden sm:block text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-full">
                 Auto-saved
               </span>
             )}
@@ -146,36 +170,54 @@ function App() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex flex-col lg:flex-row h-[calc(100vh-73px)]">
+      <div className="flex h-[calc(100vh-73px)] relative">
+        {/* Mobile Overlay */}
+        {isMobileMenuOpen && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+
         {/* Sidebar */}
-        <aside className="w-full lg:w-80 bg-white dark:bg-gray-800 border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-gray-700 flex flex-col max-h-96 lg:max-h-none">
+        <aside className={`
+          fixed lg:static inset-y-0 left-0 z-40 w-80 lg:w-80
+          bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
+          transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0
+          transition-transform duration-300 ease-in-out
+          flex flex-col max-h-[calc(100vh-73px)] lg:max-h-none
+        `}>
           <SearchBar
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             onCreateNote={handleCreateNote}
           />
-
-          <NotesList
-            notes={notes}
-            currentNote={currentNote}
-            onSelectNote={handleSelectNote}
-            onDeleteNote={handleDeleteNote}
-            onTogglePin={handleTogglePin}
-            onToggleEncryption={handleToggleEncryption}
-            loading={loading}
-          />
+          
+          <div className="flex-1 overflow-y-auto">
+            <NotesList
+              notes={notes}
+              currentNote={currentNote}
+              onSelectNote={handleSelectNote}
+              onDeleteNote={handleDeleteNote}
+              onTogglePin={handleTogglePin}
+              onToggleEncryption={handleToggleEncryption}
+              loading={loading}
+            />
+          </div>
         </aside>
 
-        {/* Editor Area */}
-        <section className="flex-1 flex flex-col bg-white dark:bg-gray-900">
+        {/* Main Content */}
+        <main className="flex-1 flex flex-col min-w-0">
           {currentNote ? (
-            <div className="flex-1 p-3 lg:p-6">
-              <div className="mb-4">
+            <div className="flex-1 flex flex-col p-4 lg:p-6 min-h-0">
+              {/* Note Header */}
+              <div className="flex-shrink-0 mb-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {currentNote.title}
-                  </h2>
+                  <NoteTitleEditor
+                    title={currentNote.title}
+                    onTitleChange={handleTitleChange}
+                    isEncrypted={currentNote.isEncrypted}
+                  />
                   {currentNote.isEncrypted && (
                     <span className="text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded-full">
                       🔒 Encrypted
@@ -187,15 +229,42 @@ function App() {
                 </p>
               </div>
 
-              {/* Split Layout: Editor + AI Panel */}
-              <div className="flex flex-col xl:flex-row gap-6 h-[calc(100vh-250px)] lg:h-[calc(100vh-200px)]">
-                {/* Editor Column */}
-                <div className="flex-1">
-                  {/* Your existing editor code */}
+              {/* Editor and AI Panel Layout */}
+              <div className="flex-1 flex flex-col xl:flex-row gap-4 min-h-0">
+                {/* Editor */}
+                <div className="flex-1 min-h-0">
+                  {currentNote.isEncrypted ? (
+                    <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                      <div className="text-center p-6">
+                        <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <span className="text-2xl">🔒</span>
+                        </div>
+                        <h3 className="font-medium text-gray-900 dark:text-white mb-2">
+                          This note is encrypted
+                        </h3>
+                        <p className="text-gray-500 dark:text-gray-400 mb-4">
+                          Click the unlock button to decrypt and view the content
+                        </p>
+                        <button
+                          onClick={() => handleToggleEncryption(currentNote)}
+                          className="btn-primary"
+                        >
+                          🔓 Decrypt Note
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <RichTextEditor
+                      key={currentNote.id}
+                      content={currentNote.content}
+                      onChange={handleContentChange}
+                      placeholder="Start writing your thoughts..."
+                    />
+                  )}
                 </div>
 
-                {/* AI Panel Column - Hidden on mobile, shown on large screens */}
-                <div className="w-full xl:w-80 overflow-y-auto">
+                {/* AI Panel */}
+                <div className="w-full xl:w-80 xl:flex-shrink-0 max-h-96 xl:max-h-none overflow-y-auto">
                   <AIPanel
                     noteContent={currentNote.isEncrypted ? '' : currentNote.content}
                     aiResults={aiResults}
@@ -208,15 +277,15 @@ function App() {
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
+            <div className="flex-1 flex items-center justify-center p-6">
+              <div className="text-center max-w-md">
                 <div className="w-24 h-24 bg-gradient-to-r from-blue-500 to-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-6">
                   <span className="text-white text-3xl">✨</span>
                 </div>
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                   Welcome to ThinkSpace
                 </h2>
-                <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md">
+                <p className="text-gray-500 dark:text-gray-400 mb-6">
                   Your intelligent note-taking companion with AI features and encryption. Create your first note to get started.
                 </p>
                 <button
@@ -228,8 +297,8 @@ function App() {
               </div>
             </div>
           )}
-        </section>
-      </main>
+        </main>
+      </div>
 
       {/* Encryption Modal */}
       <EncryptionModal

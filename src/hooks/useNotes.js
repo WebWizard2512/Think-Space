@@ -133,25 +133,15 @@ export const useNotes = () => {
 
   // Auto-save note content
   const autoSave = (noteId, content) => {
-    if (!noteId) return
+  if (!noteId) return
 
-    const note = notes.find(n => n.id === noteId)
-    if (note?.isEncrypted) {
-      // Don't auto-save encrypted notes
-      return
-    }
-
-    // Extract title from first line of content
-    const tempDiv = document.createElement('div')
-    tempDiv.innerHTML = content
-    const textContent = tempDiv.textContent || tempDiv.innerText || ''
-    const title = textContent.split('\n')[0].trim() || 'Untitled Note'
-
-    updateNote(noteId, {
-      content,
-      title: title.substring(0, 50) // Limit title length
-    })
+  const note = notes.find(n => n.id === noteId)
+  if (note?.isEncrypted) {
+    return
   }
+  // Only update content, don't auto-generate title from content
+  updateNote(noteId, { content })
+}
 
   return (
     {

@@ -1,12 +1,11 @@
 import NoteCard from './NoteCard'
 
-// Add onToggleEncryption to the destructured props list
 const NotesList = ({ notes, currentNote, onSelectNote, onDeleteNote, onTogglePin, onToggleEncryption, loading }) => {
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p className="text-gray-500 dark:text-gray-400 text-sm">Loading notes...</p>
         </div>
       </div>
@@ -17,7 +16,7 @@ const NotesList = ({ notes, currentNote, onSelectNote, onDeleteNote, onTogglePin
     return (
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="text-center">
-          <div className="w-16 h-16 bg-gray-100 dark:bg-dark-200 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
             <span className="text-2xl">📝</span>
           </div>
           <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-2">No notes found</h3>
